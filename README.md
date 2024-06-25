@@ -11,5 +11,5 @@ python -m venv venv
 venv\Scripts\activate (Windows)
 source venv/bin/activate (Linux/macOS/BSD)
 pip install -r requirements.txt
-python adm.py
+python3 adm.py
 ```

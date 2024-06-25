@@ -1,7 +1,7 @@
 import inquirer as inq
 from sys import platform
 from os import system
-from subprocess import check_output
+from subprocess import check_output, CalledProcessError
 from time import sleep
 from colorama import Fore
 
@@ -49,15 +49,8 @@ def MainMenu():
         fastbootMenu()
     elif program["answer"] == "Exit":
         clear()
+        info("Thank you for using ADM")
         exit(0)
-    # print("Searching for devices...")
-    # check_output([adb, "disconnect"])
-    # adb_devices = check_output([adb, "devices"]).decode("ascii").splitlines().remove("List of devices attached")
-    # fastboot_devices = check_output([fastboot, "devices"]).decode("ascii").splitlines()
-    # if adb_devices == None and fastboot_devices == []:
-    #     NoDevicesFound()
-    # elif adb_devices != None and fastboot_devices == []:
-    #     FastbootDevices()
     
 
 def NoDevicesFound(program):
@@ -102,27 +95,29 @@ def adbUSB():
     i = 0
     while True:
         devicestemp = check_output([adb, "-d", "devices"]).decode("ascii").splitlines()
-        del devicestemp[0]
-        del devicestemp[-1]
-        if devicestemp == ['List of devices attached', '']:
+        if devicestemp != ['List of devices attached', '']:
+            del devicestemp[0]
+            del devicestemp[-1]
             break
         i += 1
         if i == 10000:
             NoDevicesFound("adb")
-    device = {}
+    device = []
     for i in devicestemp:
         i = i.replace("\t", " ").split(" ")
-        device[i[0]] = i[1]
-    if len(device) > 1:
+        device.append(i[0])
+        device.append(i[1])
+    if len(device) > 2:
         TooManyDevices("ADB")
-    info("Found the following device")
-    for identification, mode in device:
-        info(f"Serial: {identification}")
-        info(f"Serial: {mode}")
-        if mode == "unauthorized":
-            adbUnauthorized()
-        elif mode == "device":
-            adbNormal()
+    print(device[1])
+    while device[1] == "offline":
+        adbUSB()
+    if device[1] == "unauthorized":
+        adbUnauthorized()
+    elif device[1] == "device":
+        adbNormal(device[0])
+    elif device[1] == "sideload":
+        adbSideload()
 
 def adbUnauthorized():
     clear()
@@ -131,12 +126,82 @@ def adbUnauthorized():
     info("Tip: Select the checkbox \"Always allow from this computer\" to prevent the dialog box from showing up again")
     exit(1)
 
-def adbNormal():
-    info("")
+def adbNormal(serialnum):
+    clear()
+    info("Device connected")
+    info(f"Serial number: {serialnum}")
+    action = inq.prompt([inq.List(
+        "answer",
+        "What would you like to do?",
+        ["Reboot", "Shell", "Install app from APK", "Uninstall app", "Back"]
+    )])
+    if action["answer"] == "Reboot":
+        adbReboot()
+    elif action["answer"] == "Back":
+        MainMenu()
+ 
+def adbReboot():
+    clear()
+    rebootto = inq.prompt([inq.List(
+        "answer",
+        "Reboot to",
+        ["Normal", "Recovery", "Bootloader", "Fastboot", "Cancel"]
+    )])
+    if rebootto["answer"] == "Cancel":
+        adbUSB()
+    elif rebootto["answer"] == "Normal":
+        clear()
+        info("Rebooting device...")
+        try: 
+            check_output([adb, "reboot"])
+            clear()
+            MainMenu()
+            exit(0)
+        except CalledProcessError:
+            clear()
+            error("Could not reboot device. You either have too many devices connected or the requested device was disconnected.")
+            exit(1)
+    elif rebootto["answer"] == "Recovery":
+        clear()
+        info("Rebooting device to recovery...")
+        try: 
+            check_output([adb, "reboot", "recovery"])
+            clear()
+            MainMenu()
+            exit(0)
+        except CalledProcessError:
+            clear()
+            error("Could not reboot device. You either have too many devices connected or the requested device was disconnected.")
+            exit(1)
+    elif rebootto["answer"] == "Bootloader":
+        clear()
+        info("Rebooting device to bootloader...")
+        try: 
+            check_output([adb, "reboot", "bootloader"])
+            clear()
+            MainMenu()
+            exit(0)
+        except CalledProcessError:
+            clear()
+            error("Could not reboot device. You either have too many devices connected or the requested device was disconnected.")
+            exit(1)
+    elif rebootto["answer"] == "Fastboot":
+        clear()
+        info("Rebooting device to Fastboot...")
+        try: 
+            check_output([adb, "reboot", "fastboot"])
+            clear()
+            MainMenu()
+            exit(0)
+        except CalledProcessError:
+            clear()
+            error("Could not reboot device. You either have too many devices connected or the requested device was disconnected.")
+            exit(1)
 
 def adbSideload():
     clear()
-    error("Sideloading is not support in ADM yet")
+    error("Sideloading is not supported in ADM yet")
+    info("If you want to exit sideload mode, run the command `adb reboot`")
     exit(1)
 
 def fastbootMenu():
