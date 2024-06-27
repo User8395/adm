@@ -137,6 +137,8 @@ def adbNormal(serialnum):
     )])
     if action["answer"] == "Reboot":
         adbReboot()
+    elif action["answer"] == "Shell":
+        adbShell()
     elif action["answer"] == "Back":
         MainMenu()
  
@@ -197,6 +199,13 @@ def adbReboot():
             clear()
             error("Could not reboot device. You either have too many devices connected or the requested device was disconnected.")
             exit(1)
+
+def adbShell():
+    clear()
+    info("Now dropping to a shell")
+    info("If you got here by mistake, type \"exit\" and press [ENTER]")
+    system(f"{adb} shell")
+    adbUSB()
 
 def adbSideload():
     clear()
