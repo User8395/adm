@@ -1,6 +1,6 @@
 import inquirer as inq
 from sys import platform
-from os import system
+from os import system, listdir, getcwd, chdir, path
 from subprocess import check_output, CalledProcessError
 from time import sleep
 from colorama import Fore
@@ -34,6 +34,33 @@ def warn(text):
 
 def error(text):
     print(f"[{Fore.RED}x{Fore.WHITE}] {text}")
+
+def fileprompt(message, type):
+    originaldirectory = getcwd()
+    while True:
+        try:
+            clear()
+            selected = inq.prompt([inq.List(
+                "answer",
+                f"{message} from {getcwd()}",
+                ["Cancel"] + ["Parent directory"] + sorted(list(map(lambda i: i + "/", filter(lambda i: path.isdir(i), listdir())))) + sorted(list(filter(lambda i: i.endswith(type), filter(lambda i: path.isfile(i), listdir()))))
+            )])["answer"]
+            if path.isdir(selected):
+                chdir(selected)
+            elif selected == "Parent directory":
+                chdir("..")
+            elif selected == "Cancel":
+                chdir(originaldirectory)
+                return ""
+            else:
+                fullpath = path.join(getcwd(), selected)
+                chdir(originaldirectory)
+                return fullpath
+        except PermissionError:
+            clear()
+            error("Cannot access directory: permission denied")
+            sleep(2)
+        
 
 
 def MainMenu():
@@ -129,16 +156,19 @@ def adbUnauthorized():
 def adbNormal(serialnum):
     clear()
     info("Device connected")
+    info(f"Device: {check_output([adb, "shell", "getprop", "ro.product.manufacturer"]).decode("ascii").splitlines()[0]} {check_output([adb, "shell", "getprop", "ro.product.model"]).decode("ascii").splitlines()[0]}")
     info(f"Serial number: {serialnum}")
     action = inq.prompt([inq.List(
         "answer",
-        "What would you like to do?",
+        "Choose an action",
         ["Reboot", "Shell", "Install app from APK", "Uninstall app", "Back"]
     )])
     if action["answer"] == "Reboot":
         adbReboot()
     elif action["answer"] == "Shell":
         adbShell()
+    elif action["answer"] == "Install app from APK":
+        adbAPK()
     elif action["answer"] == "Back":
         MainMenu()
  
@@ -206,6 +236,50 @@ def adbShell():
     info("If you got here by mistake, type \"exit\" and press [ENTER]")
     system(f"{adb} shell")
     adbUSB()
+
+def adbAPK():
+    apk = fileprompt("Select APK file", "apk")
+    if apk == "":
+        adbUSB()
+    else:
+        clear()
+        info(f"APK to install: {apk}")
+        info(f"Installing to: {check_output([adb, "shell", "getprop", "ro.product.manufacturer"]).decode("ascii").splitlines()[0]} {check_output([adb, "shell", "getprop", "ro.product.model"]).decode("ascii").splitlines()[0]}")
+        warn("Make sure you downloaded the APK from a reliable source")
+        warn("Unknown APKs can cause issues with your device")
+        confirm = inq.prompt([inq.List(
+            "answer",
+            "Install APK?",
+            ["Yes", "No"]
+        )])["answer"]
+        if confirm == "Yes":
+            adbInstall(apk)
+        elif confirm == "No":
+            adbUSB()
+        
+def adbInstall(apk):
+    clear()
+    info(f"Installing {apk}")
+    installstatus = check_output([adb, "install", apk]).decode("ascii").splitlines()[1]
+    if installstatus == "Success":
+        clear()
+        info("APK installed")
+        info("Returning in 3 seconds")
+        sleep(3)
+        adbUSB()
+    else:
+        clear()
+        error("An error occurred while installing")
+        error(f"Error message {installstatus.split(" ")[1]}")
+        confirm = inq.prompt([inq.List(
+            "answer",
+            "Try again?",
+            ["Yes", "No"] 
+        )])["answer"]
+        if confirm == "Yes":
+            adbInstall(apk)
+        elif confirm == "No":
+            adbUSB()
 
 def adbSideload():
     clear()
